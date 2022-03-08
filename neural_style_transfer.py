@@ -14,7 +14,8 @@ def get_model_from_path():
     return faceenhancer
 
 def style_transfer(image_lr, model):
-    image_lr = cv2.bitwise_not(image_lr)
+    cv2.imwrite("image.png",image_lr) 
+    #image_lr = cv2.bitwise_not(image_lr)
     og_image =  image_lr.copy()
     image_hr, _, _ = model.process(image_lr)
     #print("HELLO+")

@@ -2,17 +2,25 @@
 import threading
 import numpy as np
 import streamlit as st
-from streamlit_webrtc import AudioProcessorBase, WebRtcMode, webrtc_streamer,VideoTransformerBase,ClientSettings
+from streamlit_webrtc import (
+    AudioProcessorBase,
+    RTCConfiguration,
+    VideoProcessorBase,
+    WebRtcMode,
+    webrtc_streamer,
+)
 from PIL import Image
 from aiortc.contrib.media import MediaRecorder
 from neural_style_transfer import get_model_from_path, style_transfer
-
-
+import av
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
 def webcam_input():
     st.header("Super_Resolution_Module")
     WIDTH = st.sidebar.select_slider('QUALITY (May reduce the speed)', list(range(150, 501, 50)))
 
-    class NeuralStyleTransferTransformer(VideoTransformerBase):
+    class SuperResolution(VideoProcessorBase):
         _width = WIDTH
         _model = None
 
@@ -33,7 +41,7 @@ def webcam_input():
             with self._model_lock:
                 self._model = get_model_from_path()
 
-        def transform(self, frame):
+        def recv(self, frame):
             image = frame.to_ndarray(format="bgr24")
 
             if self._model == None:
@@ -47,19 +55,21 @@ def webcam_input():
             with self._model_lock:
                 transferred = style_transfer(input, self._model)
 
-            result = Image.fromarray((transferred * 255).astype(np.uint8))
-            return np.asarray(result.resize((orig_w, orig_h)))
+            return av.VideoFrame.from_ndarray(transferred, format="bgr24")
+
 
     ctx = webrtc_streamer(
-        client_settings=ClientSettings(
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-            media_stream_constraints={"video": True, "audio": False},
-        ),
-        video_transformer_factory=NeuralStyleTransferTransformer,
-        key="neural-style-transfer",
+        key="super_resolution",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTC_CONFIGURATION,
+        video_processor_factory=SuperResolution,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
     )
     if ctx.video_transformer:
         ctx.video_transformer.set_width(WIDTH)
+
+
 
 
 
